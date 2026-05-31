@@ -6,3 +6,13 @@ Steps to use DVC.docx
 /models
 # add .venv/
 .venv/
+/best_model.pkl
+/scaler.pkl
+/feature_columns.json
+/target_column.json
+/X_train.npy
+/X_train_scaled.npy
+/X_test.npy
+/X_test_scaled.npy
+/y_train.npy
+/y_test.npy

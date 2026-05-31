@@ -24,7 +24,6 @@ def train_model():
     seed = params["data"].get("random_seed", 42)
     test_size = params["data"].get("test_size", 0.15)
     target_col = params["data"].get("target_col", "NObeyesdad")
-    max_depth = params["model"].get("dense_units_1", 10)  # Reusing parameters safely or setting default
 
     # 2. Check and Load Dataset
     train_path = "train/train.csv"
@@ -52,6 +51,9 @@ def train_model():
     print(f"Categorical features detected: {cat_cols}")
     
     X_encoded = pd.get_dummies(X, columns=cat_cols, drop_first=True)
+    
+    # CRITICAL FIX: Convert entire DataFrame to float64 to purge Object/Boolean types
+    X_encoded = X_encoded.astype(np.float64)
     feature_columns = X_encoded.columns.tolist()
 
     # Save feature names signature
@@ -87,14 +89,14 @@ def train_model():
     joblib.dump(scaler, "scaler.pkl")
     print("Saved scaler.pkl preprocessing object.")
 
-    # 7. Save NumPy Array Splits directly to Root for artifact consistency
-    np.save("X_train.npy", X_train)
-    np.save("X_train_scaled.npy", X_train_scaled)
-    np.save("X_test.npy", X_test)
-    np.save("X_test_scaled.npy", X_test_scaled)
-    np.save("y_train.npy", y_train)
-    np.save("y_test.npy", y_test)
-    print("Exported all array split partitions (.npy) to root folder.")
+    # 7. Save NumPy Array Splits casting to match other group's exact descriptors (<i8 and <f8)
+    np.save("X_train.npy", X_train.astype(np.int64))
+    np.save("X_train_scaled.npy", X_train_scaled.astype(np.float64))
+    np.save("X_test.npy", X_test.astype(np.int64))
+    np.save("X_test_scaled.npy", X_test_scaled.astype(np.float64))
+    np.save("y_train.npy", y_train.astype(np.int64))
+    np.save("y_test.npy", y_test.astype(np.int64))
+    print("Exported all array split partitions (.npy) with strict numeric types.")
 
     # 8. Train and Compare Support Vector Machine vs Decision Tree Classifiers
     # A. SVM
@@ -104,7 +106,7 @@ def train_model():
     svm_acc = accuracy_score(y_test, svm_preds)
     print(f"SVM Test Accuracy: {svm_acc:.4f}")
 
-    # B. Decision Tree (matching the other group's configuration)
+    # B. Decision Tree
     dt_model = DecisionTreeClassifier(max_depth=10, random_state=seed)
     dt_model.fit(X_train_scaled, y_train)
     dt_preds = dt_model.predict(X_test_scaled)

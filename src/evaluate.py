@@ -23,9 +23,10 @@ def evaluate_model():
             print(f"Error: Required file {path} is missing.")
             sys.exit(1)
 
-    X_test_scaled = np.load("X_test_scaled.npy")
-    y_test = np.load("y_test.npy")
-    X_train = np.load("X_train.npy")
+    # CRITICAL FIX: allow_pickle=True permits loading pre-existing baseline object arrays securely
+    X_test_scaled = np.load("X_test_scaled.npy", allow_pickle=True)
+    y_test = np.load("y_test.npy", allow_pickle=True)
+    X_train = np.load("X_train.npy", allow_pickle=True)
 
     # 2. Load and Run Model Predictions
     model = joblib.load("best_model.pkl")

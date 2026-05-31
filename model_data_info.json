@@ -1,0 +1,36 @@
+{
+    "hyperparameters": {
+        "model": "Decision Tree",
+        "svm": null,
+        "decision_tree": {
+            "max_depth": 10,
+            "random_state": 42
+        }
+    },
+    "train_samples": 1524,
+    "test_samples": 270,
+    "features_count": 23,
+    "target_classes": 7,
+    "target_min": 0,
+    "target_max": 6,
+    "target_mean": 3.0074074074074075,
+    "target_std": 1.9531410458874483,
+    "scaler_type": "StandardScaler",
+    "test_performance": {
+        "accuracy": 0.9222222222222223,
+        "f1_score": 0.9195560656370213,
+        "precision": 0.9197453340310483,
+        "recall": 0.9196298339155481
+    },
+    "data_info": {
+        "train_samples": 1524,
+        "test_samples": 270,
+        "features_count": 23,
+        "classes_count": 7,
+        "target_min": 0,
+        "target_max": 6,
+        "target_mean": 3.0074074074074075,
+        "target_std": 1.9531410458874483
+    },
+    "timestamp": "2026-06-01T00:24:24.740544"
+}

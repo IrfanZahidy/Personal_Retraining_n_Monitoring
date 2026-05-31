@@ -9,62 +9,78 @@ stages:
       size: 231
     - path: src/model.py
       hash: md5
-      md5: 35e78f3bc0afe79055210157ca1def0d
-      size: 4333
+      md5: ca8a052ab0be0611e30af57096cc7b51
+      size: 5720
     - path: train/train.csv
       hash: md5
       md5: 20c3aff373223a76404dbaf193a3e3be
       size: 234059
     outs:
-    - path: artifacts/X_test_scaled.npy
+    - path: X_test.npy
       hash: md5
-      md5: c088cf2214998982a060624423d0f1e0
-      size: 34688
-    - path: artifacts/feature_columns.json
+      md5: f61132a469673305e0044036bace493b
+      size: 49808
+    - path: X_test_scaled.npy
       hash: md5
-      md5: 2da1c8cda9ef0ed832af3d98913b74c0
-      size: 264
-    - path: artifacts/label_encoder_mapping.json
+      md5: 249831c68faa52dc548de01616d36435
+      size: 49808
+    - path: X_train.npy
       hash: md5
-      md5: 141b92714341af8a599e0715050b8466
-      size: 193
-    - path: artifacts/scaler_params.json
+      md5: 1f34a674dff132abc784698b42710b52
+      size: 280544
+    - path: X_train_scaled.npy
       hash: md5
-      md5: 27d81766c4c65b69944a6f0833937332
-      size: 921
-    - path: artifacts/y_test.npy
+      md5: 11a00e17dfdd323ae2dce8e3f01a07da
+      size: 280544
+    - path: best_model.pkl
+      hash: md5
+      md5: ea7bf0d3c952455cd4b3fe6266755689
+      size: 23313
+    - path: feature_columns.json
+      hash: md5
+      md5: b93e83afad54716047d872c750ae3715
+      size: 428
+    - path: scaler.pkl
+      hash: md5
+      md5: 66d769df17769d57f4c4e7815586adad
+      size: 1119
+    - path: target_column.json
+      hash: md5
+      md5: adfcf5e4a210a5f593588350b226bb25
+      size: 169
+    - path: y_test.npy
       hash: md5
       md5: 21117bf1253128284318a032134acf70
       size: 2288
-    - path: models/model.keras
+    - path: y_train.npy
       hash: md5
-      md5: f56ecdaed3b8b560af765caa169f51df
-      size: 160485
+      md5: cfaef0e897ce322603f1b69eda0dbad0
+      size: 12320
   evaluate:
     cmd: python src/evaluate.py
     deps:
-    - path: artifacts/X_test_scaled.npy
+    - path: X_test_scaled.npy
       hash: md5
-      md5: c088cf2214998982a060624423d0f1e0
-      size: 34688
-    - path: artifacts/y_test.npy
+      md5: 249831c68faa52dc548de01616d36435
+      size: 49808
+    - path: best_model.pkl
       hash: md5
-      md5: 21117bf1253128284318a032134acf70
-      size: 2288
-    - path: models/model.keras
-      hash: md5
-      md5: f56ecdaed3b8b560af765caa169f51df
-      size: 160485
+      md5: ea7bf0d3c952455cd4b3fe6266755689
+      size: 23313
     - path: params.yaml
       hash: md5
       md5: 0ea824ae672434de48cde70d84d0fa0e
       size: 231
     - path: src/evaluate.py
       hash: md5
-      md5: 9a38314cb5ae2e31f450c34dce145728
-      size: 1664
+      md5: dd8643bebcdcb3987a96a8e87e1ccc84
+      size: 3388
+    - path: y_test.npy
+      hash: md5
+      md5: 21117bf1253128284318a032134acf70
+      size: 2288
     outs:
     - path: metrics.json
       hash: md5
-      md5: a7d5b4694290e61e4e310547b7355dbe
+      md5: d3dc2248a7cf1e1977fcef6c1dd74553
       size: 127
