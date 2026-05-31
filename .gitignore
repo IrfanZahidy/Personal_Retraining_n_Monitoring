@@ -4,3 +4,5 @@ Steps to use DVC.docx
 /dvclive
 /artifacts
 /models
+# add .venv/
+.venv/
