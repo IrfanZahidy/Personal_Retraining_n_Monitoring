@@ -8,44 +8,64 @@ on:
       - 'train/*.csv'
       - 'test/*.csv'
   schedule:
-    - cron: '0 */12 * * *'
-  workflow_dispatch:
+    - cron: '0 */12 * * *'        # Runs automatically every 12 hours
+  workflow_dispatch:              # Allows manual execution from the Actions UI
+
+permissions:
+  contents: write                 # Grants permission to write changes back to your repository
 
 jobs:
   monitor-and-retrain:
     runs-on: ubuntu-latest
     
     steps:
+    # 1. Check out the repository code
     - name: Checkout code
       uses: actions/checkout@v4
       with:
         token: ${{ secrets.PAT_TOKEN }}
         fetch-depth: 0
     
+    # 2. Set up Python
     - name: Setup Python
       uses: actions/setup-python@v5
       with:
         python-version: '3.11'
 
+    # 3. Cache pip dependencies to speed up subsequent runs
+    - name: Cache pip dependencies
+      uses: actions/cache@v4
+      with:
+        path: ~/.cache/pip
+        key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+        restore-keys: |
+          ${{ runner.os }}-pip-
+
+    # 4. Configure Git user for DVCLive
     - name: Configure Git user for DVCLive
       run: |
         git config --global user.email "actions@github.com"
         git config --global user.name "GitHub Actions"
         
+    # 5. Install dependencies
     - name: Install dependencies
       run: |
         pip install --upgrade pip
         pip install dvc pandas numpy tensorflow scikit-learn joblib scipy matplotlib dvclive
     
+    # 6. Configure DVC remote
     - name: Configure DVC remote
       run: |
         dvc remote modify origin --local auth basic
         dvc remote modify origin --local user ${{ secrets.DAGSHUB_USERNAME }}
         dvc remote modify origin --local password ${{ secrets.DAGSHUB_TOKEN }}
+        dvc remote modify origin ssl_verify false
     
+    # 7. Pull latest data and models
     - name: Pull latest data and models
       run: dvc pull --allow-missing || echo "No existing data to pull"
     
+    # 8. Check for new data
     - name: Check for new data
       id: check_data
       run: |
@@ -59,11 +79,13 @@ jobs:
           echo "new_data=false" >> $GITHUB_OUTPUT
         fi
     
+    # 9. Run monitoring (for logging only)
     - name: Run monitoring (for logging only)
       run: |
         echo "Running monitoring to check current state..."
         python src/monitor.py || echo "Monitoring completed with warnings"
     
+    # 10. Retrain model (only if new data exists)
     - name: Retrain model (only if new data exists)
       if: env.NEW_DATA == 'true'
       run: |
@@ -71,7 +93,7 @@ jobs:
         echo "RETRAINING MODEL (New Data Detected)"
         echo "=========================================="
         
-        # Combine old and new data
+        # Combine old and new data using inline Python script
         python -c "
         import pandas as pd
         import os
@@ -110,29 +132,32 @@ jobs:
         
         # Save retraining metadata
         mkdir -p artifacts/metadata
-        echo "$(date)" > artifacts/metadata/last_retrain.txt
+        echo \"$(date)\" > artifacts/metadata/last_retrain.txt
         
         echo ""
         echo "Retraining completed!"
     
+    # 11. Evaluate new model
     - name: Evaluate new model
       if: env.NEW_DATA == 'true'
       run: |
         echo "Evaluating new model..."
         python src/evaluate.py
     
+    # 12. Push new model and artifacts
     - name: Push new model and artifacts
       if: env.NEW_DATA == 'true'
       run: |
         dvc push
     
+    # 13. Commit and push changes
     - name: Commit and push changes
       if: env.NEW_DATA == 'true'
       run: |
         git config user.name "GitHub Actions"
         git config user.email "actions@github.com"
         git add artifacts/ models/ train/ data/processed/ || true
-        git add *.dvc dvc.lock || true
+        git add *.dvc dvc.lock monitoring_dashboard.html monitoring/ || true
         
         if git diff --staged --quiet; then
           echo "No changes to commit"
@@ -141,6 +166,7 @@ jobs:
           git push
         fi
     
+    # 14. Upload reports
     - name: Upload reports
       uses: actions/upload-artifact@v4
       with:
@@ -151,8 +177,11 @@ jobs:
           artifacts/metadata/
           model_results.png
           model_summary.txt
+          monitoring_dashboard.html
+          monitoring/reports/
         retention-days: 7
     
+    # 15. Send notification
     - name: Send notification
       if: env.NEW_DATA == 'true'
       run: |
