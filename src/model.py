@@ -2,27 +2,29 @@ import os
 import sys
 import json
 import yaml
+import joblib
 import numpy as np
 import pandas as pd
-import tensorflow as tf
+import matplotlib.pyplot as plt
 from sklearn.model_selection import train_test_split
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, LabelEncoder
+from sklearn.tree import DecisionTreeClassifier
+from sklearn.svm import SVC
+from sklearn.metrics import accuracy_score
 
 def train_model():
     print("=" * 50)
-    print("STARTING MULTI-CLASS CLASSIFICATION MODEL TRAINING")
+    print("STARTING CLASSICAL MACHINE LEARNING PIPELINE")
     print("=" * 50)
 
     # 1. Load Parameters
     with open("params.yaml", "r") as f:
         params = yaml.safe_load(f)
 
-    epochs = params["model"]["epochs"]
-    batch_size = params["model"]["batch_size"]
-    lr = params["model"]["learning_rate"]
-    seed = params["data"]["random_seed"]
-    test_size = params["data"]["test_size"]
-    target_col = params["data"]["target_col"]
+    seed = params["data"].get("random_seed", 42)
+    test_size = params["data"].get("test_size", 0.15)
+    target_col = params["data"].get("target_col", "NObeyesdad")
+    max_depth = params["model"].get("dense_units_1", 10)  # Reusing parameters safely or setting default
 
     # 2. Check and Load Dataset
     train_path = "train/train.csv"
@@ -31,9 +33,9 @@ def train_model():
         sys.exit(1)
 
     df = pd.read_csv(train_path)
-    print(f"Loaded training data. Shape: {df.shape}")
+    print(f"Loaded training dataset. Shape: {df.shape}")
 
-    # Separating features and target
+    # Separate features and target
     if target_col not in df.columns:
         print(f"Error: Target column '{target_col}' not found.")
         sys.exit(1)
@@ -45,84 +47,109 @@ def train_model():
     if 'ID' in X.columns:
         X = X.drop(columns=['ID'])
 
-    # 3. Categorical Feature Encoding
+    # 3. Handle Categorical Feature Encodings (Dummy One-Hot Encoding)
     cat_cols = X.select_dtypes(include=['O', 'object']).columns.tolist()
     print(f"Categorical features detected: {cat_cols}")
     
-    for col in cat_cols:
-        freq_map = X[col].value_counts().to_dict()
-        X[f"{col}_freq"] = X[col].map(freq_map).fillna(0)
-    X = X.drop(columns=cat_cols)
+    X_encoded = pd.get_dummies(X, columns=cat_cols, drop_first=True)
+    feature_columns = X_encoded.columns.tolist()
 
-    X = X.apply(pd.to_numeric, errors='coerce').fillna(0.0)
-
-    # Save feature names list for alignment checks during preprocessing
-    feature_columns = X.columns.tolist()
-    os.makedirs("artifacts", exist_ok=True)
-    with open("artifacts/feature_columns.json", "w") as f:
+    # Save feature names signature
+    with open("feature_columns.json", "w") as f:
         json.dump(feature_columns, f, indent=4)
-    print(f"Saved feature column schema ({len(feature_columns)} features).")
+    print(f"Saved feature_columns.json with {len(feature_columns)} features.")
 
-    # 4. Target Label Encoding (7 Classes)
-    y_categories = sorted(y.unique().tolist())
-    label_to_index = {name: i for i, name in enumerate(y_categories)}
-    y_encoded = y.map(label_to_index).values
+    # 4. Target Label Encoding
+    label_encoder = LabelEncoder()
+    y_encoded = label_encoder.fit_transform(y)
+    num_classes = len(label_encoder.classes_)
 
-    with open("artifacts/label_encoder_mapping.json", "w") as f:
-        json.dump(label_to_index, f, indent=4)
-    print(f"Mapped {len(y_categories)} classes successfully.")
+    target_info = {
+        "target_column": "obesity_class",
+        "num_classes": int(num_classes),
+        "unique_classes": [int(i) for i in range(num_classes)]
+    }
+    with open("target_column.json", "w") as f:
+        json.dump(target_info, f, indent=4)
+    print("Saved target_column.json mapping configuration.")
 
-    # 5. Train-test Split
+    # 5. Train-Test Split (with stratification for balanced representation)
     X_train, X_test, y_train, y_test = train_test_split(
-        X.values, y_encoded, test_size=test_size, random_state=seed, stratify=y_encoded
+        X_encoded.values, y_encoded, test_size=test_size, random_state=seed, stratify=y_encoded
     )
 
-    # 6. Feature Scaling
+    # 6. Apply Standard Scaling
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
-    # Save scaler statistics for monitoring preprocessing
-    scaler_params = {
-        "mean": scaler.mean_.tolist(),
-        "scale": scaler.scale_.tolist()
-    }
-    with open("artifacts/scaler_params.json", "w") as f:
-        json.dump(scaler_params, f, indent=4)
+    # Save StandardScaler
+    joblib.dump(scaler, "scaler.pkl")
+    print("Saved scaler.pkl preprocessing object.")
 
-    # Save split sets for independent evaluation stage
-    np.save("artifacts/X_test_scaled.npy", X_test_scaled)
-    np.save("artifacts/y_test.npy", y_test)
+    # 7. Save NumPy Array Splits directly to Root for artifact consistency
+    np.save("X_train.npy", X_train)
+    np.save("X_train_scaled.npy", X_train_scaled)
+    np.save("X_test.npy", X_test)
+    np.save("X_test_scaled.npy", X_test_scaled)
+    np.save("y_train.npy", y_train)
+    np.save("y_test.npy", y_test)
+    print("Exported all array split partitions (.npy) to root folder.")
 
-    # 7. Build Neural Network (Multi-Class Softmax Classifier)
-    tf.random.set_seed(seed)
-    model = tf.keras.models.Sequential([
-        tf.keras.layers.Dense(params["model"]["dense_units_1"], activation='relu', input_shape=(X_train_scaled.shape[1],)),
-        tf.keras.layers.Dropout(params["model"]["dropout_rate"]),
-        tf.keras.layers.Dense(params["model"]["dense_units_2"], activation='relu'),
-        tf.keras.layers.Dropout(params["model"]["dropout_rate"]),
-        tf.keras.layers.Dense(len(y_categories), activation='softmax')
-    ])
+    # 8. Train and Compare Support Vector Machine vs Decision Tree Classifiers
+    # A. SVM
+    svm_model = SVC(kernel='rbf', probability=True, random_state=seed)
+    svm_model.fit(X_train_scaled, y_train)
+    svm_preds = svm_model.predict(X_test_scaled)
+    svm_acc = accuracy_score(y_test, svm_preds)
+    print(f"SVM Test Accuracy: {svm_acc:.4f}")
 
-    model.compile(
-        optimizer=tf.keras.optimizers.Adam(learning_rate=lr),
-        loss='sparse_categorical_crossentropy',
-        metrics=['accuracy']
-    )
+    # B. Decision Tree (matching the other group's configuration)
+    dt_model = DecisionTreeClassifier(max_depth=10, random_state=seed)
+    dt_model.fit(X_train_scaled, y_train)
+    dt_preds = dt_model.predict(X_test_scaled)
+    dt_acc = accuracy_score(y_test, dt_preds)
+    print(f"Decision Tree Test Accuracy: {dt_acc:.4f}")
 
-    # 8. Model Training
-    os.makedirs("models", exist_ok=True)
-    model.fit(
-        X_train_scaled, y_train,
-        validation_data=(X_test_scaled, y_test),
-        epochs=epochs,
-        batch_size=batch_size,
-        verbose=1
-    )
+    # 9. Save Best Model and Comparison Visualizations
+    best_model = dt_model if dt_acc >= svm_acc else svm_model
+    joblib.dump(best_model, "best_model.pkl")
+    print(f"Saved best performing model as best_model.pkl")
 
-    # Save compiled network weights
-    model.save("models/model.keras")
-    print("Saved trained classifier model weights to models/model.keras")
+    # Generate the Comparison Plot (model_comparison.png)
+    plt.figure(figsize=(10, 6))
+    models = ['SVM', 'Decision Tree']
+    accuracies = [svm_acc, dt_acc]
+    bars = plt.bar(models, accuracies, color=['#e5e7eb', '#f59e0b'], width=0.6)
+    plt.ylabel('Accuracy')
+    plt.ylim(0, 1.0)
+    plt.title('Model Accuracy Comparison')
+    
+    # Label the exact values on top of bars
+    for bar in bars:
+        height = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2., height + 0.01, f"{height:.2f}", ha='center', va='bottom')
+
+    plt.tight_layout()
+    plt.savefig('model_comparison.png', dpi=150)
+    plt.close()
+    print("Saved model_comparison.png visualization metrics plot.")
+
+    # 10. Write Model Summary to model_summary.txt
+    summary_text = f"""Model: Decision Tree Classifier
+=========================================
+Hyperparameters:
+- Max Depth: 10
+- Random State: {seed}
+=========================================
+Architecture Configuration Info:
+- Input Features count: {X_train.shape[1]}
+- Output target classes: {num_classes}
+- Total Samples processed: {len(X_train_scaled)}
+"""
+    with open("model_summary.txt", "w") as f_sum:
+        f_sum.write(summary_text.strip())
+    print("Saved model_summary.txt summary file.")
 
 if __name__ == "__main__":
     train_model()
