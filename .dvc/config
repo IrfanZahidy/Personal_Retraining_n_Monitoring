@@ -2,4 +2,5 @@
     remote = origin
     autostage = true
 ['remote "origin"']
-    url = https://dagshub.com/AfzalAChowdhary/deployment-data-COS40007.dvc
+    url = https://dagshub.com/IrfanZahidy/Personal_Retraining_N_Monitoring.dvc
+    ssl_verify = false
