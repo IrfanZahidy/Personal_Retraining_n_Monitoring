@@ -9,45 +9,41 @@ stages:
       size: 231
     - path: src/model.py
       hash: md5
-      md5: ca8a052ab0be0611e30af57096cc7b51
-      size: 5720
+      md5: d719b70602437b19ed9ba7be6f01e230
+      size: 5930
     - path: train/train.csv
       hash: md5
       md5: 20c3aff373223a76404dbaf193a3e3be
       size: 234059
     outs:
-    - path: X_test.npy
-      hash: md5
-      md5: f61132a469673305e0044036bace493b
-      size: 49808
     - path: X_test_scaled.npy
       hash: md5
       md5: 249831c68faa52dc548de01616d36435
       size: 49808
-    - path: X_train.npy
-      hash: md5
-      md5: 1f34a674dff132abc784698b42710b52
-      size: 280544
     - path: X_train_scaled.npy
       hash: md5
       md5: 11a00e17dfdd323ae2dce8e3f01a07da
       size: 280544
-    - path: best_model.pkl
+    - path: ann_classifier_model.h5
       hash: md5
-      md5: ea7bf0d3c952455cd4b3fe6266755689
-      size: 23313
-    - path: feature_columns.json
+      md5: 7415eda367caba202f02f23a00c60d28
+      size: 89560
+    - path: best_traditional_model.pkl
       hash: md5
-      md5: b93e83afad54716047d872c750ae3715
-      size: 428
+      md5: f0179eea47cd32b0371c4fba9d71a27c
+      size: 5808369
+    - path: label_encoder.pkl
+      hash: md5
+      md5: ca10010125ffa14ee0fabf3e05b63789
+      size: 608
     - path: scaler.pkl
       hash: md5
       md5: 66d769df17769d57f4c4e7815586adad
       size: 1119
-    - path: target_column.json
+    - path: training_history.pkl
       hash: md5
-      md5: adfcf5e4a210a5f593588350b226bb25
-      size: 169
+      md5: 4536de71fbc47fd5b04801c6ddfa4cb0
+      size: 2346
     - path: y_test.npy
       hash: md5
       md5: 21117bf1253128284318a032134acf70
@@ -63,24 +59,27 @@ stages:
       hash: md5
       md5: 249831c68faa52dc548de01616d36435
       size: 49808
-    - path: best_model.pkl
+    - path: ann_classifier_model.h5
       hash: md5
-      md5: ea7bf0d3c952455cd4b3fe6266755689
-      size: 23313
+      md5: 7415eda367caba202f02f23a00c60d28
+      size: 89560
+    - path: best_traditional_model.pkl
+      hash: md5
+      md5: f0179eea47cd32b0371c4fba9d71a27c
+      size: 5808369
     - path: params.yaml
       hash: md5
       md5: 0ea824ae672434de48cde70d84d0fa0e
       size: 231
     - path: src/evaluate.py
       hash: md5
-      md5: dd8643bebcdcb3987a96a8e87e1ccc84
-      size: 3388
+      md5: 11970a41d2ef286addcb64d2e4451772
+      size: 7004
+    - path: training_history.pkl
+      hash: md5
+      md5: 4536de71fbc47fd5b04801c6ddfa4cb0
+      size: 2346
     - path: y_test.npy
       hash: md5
       md5: 21117bf1253128284318a032134acf70
       size: 2288
-    outs:
-    - path: metrics.json
-      hash: md5
-      md5: d3dc2248a7cf1e1977fcef6c1dd74553
-      size: 127
