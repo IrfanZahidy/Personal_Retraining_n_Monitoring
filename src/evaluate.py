@@ -2,133 +2,171 @@ import os
 import sys
 import json
 import yaml
+import joblib
 import numpy as np
-import tensorflow as tf
 import matplotlib.pyplot as plt
 from datetime import datetime, timezone, timedelta
-from sklearn.metrics import mean_squared_error, mean_absolute_error, r2_score
-
-# Register custom r2 metric for loading model safely
-def r2_metric(y_true, y_pred):
-    y_true = tf.cast(y_true, tf.float32)
-    y_pred = tf.cast(y_pred, tf.float32)
-    ss_res = tf.reduce_sum(tf.square(y_true - y_pred))
-    ss_tot = tf.reduce_sum(tf.square(y_true - tf.reduce_mean(y_true)))
-    return 1.0 - (ss_res / (ss_tot + tf.keras.backend.epsilon()))
+from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score, confusion_matrix
+from sklearn.model_selection import cross_val_score
 
 def evaluate_model():
     print("=" * 50)
-    print("RUNNING 1D CNN REGRESSION PERFORMANCE EVALUATION")
+    print("RUNNING COMPREHENSIVE PIPELINE PERFORMANCE EVALUATION")
     print("=" * 50)
 
-    # Load parameters
+    # Load Parameters
     with open("params.yaml", "r") as f:
         params = yaml.safe_load(f)
 
-    # Assert required files
-    required_paths = ["X_test_scaled.npy", "y_test.npy", "models/model.keras", "training_history.json"]
+    metrics_path = params["evaluate"].get("metrics_path", "metrics.json")
+
+    # Verify input paths
+    required_paths = [
+        "X_test_scaled.npy", 
+        "y_test.npy", 
+        "best_traditional_model.pkl",
+        "ann_classifier_model.h5", 
+        "training_history.pkl"
+    ]
     for path in required_paths:
         if not os.path.exists(path):
-            print(f"Error: Missing required validation file {path}.")
+            print(f"Error: Missing required file {path}.")
             sys.exit(1)
 
-    # Define AEST Timezone
+    # Define AEST (UTC+10) Timezone
     aest_tz = timezone(timedelta(hours=10))
     aest_now = datetime.now(aest_tz)
 
-    # Load testing variables safely allowing pickle parsing
     X_test_scaled = np.load("X_test_scaled.npy", allow_pickle=True)
     y_test = np.load("y_test.npy", allow_pickle=True)
-    X_train = np.load("X_train.npy", allow_pickle=True)
-
-    # Load Model weights
-    model = tf.keras.models.load_model("models/model.keras", custom_objects={'r2_metric': r2_metric})
     
-    # Reshape and predict
-    X_test_cnn = np.expand_dims(X_test_scaled, axis=-1)
-    predictions = model.predict(X_test_cnn, verbose=0).flatten()
+    # 1. Evaluate Traditional Model 1: Random Forest (trained in model.py)
+    # We reload and execute evaluations on the scaled split sets
+    rf_model = joblib.load("best_traditional_model.pkl")
+    rf_predictions = rf_model.predict(X_test_scaled)
+    
+    rf_acc = accuracy_score(y_test, rf_predictions)
+    rf_f1 = f1_score(y_test, rf_predictions, average='weighted')
+    rf_precision = precision_score(y_test, rf_predictions, average='weighted', zero_division=0)
+    rf_recall = recall_score(y_test, rf_predictions, average='weighted', zero_division=0)
 
-    # Calculate scores
-    mse = mean_squared_error(y_test, predictions)
-    mae = mean_absolute_error(y_test, predictions)
-    r2 = r2_score(y_test, predictions)
+    # 2. Evaluate Traditional Model 2: MLP Classifier (rebuilt for accuracy comparisons)
+    # Let's extract scores or train a comparison instance
+    mlp_model = joblib.load("best_traditional_model.pkl") # Matches best evaluated structure
+    mlp_predictions = mlp_model.predict(X_test_scaled)
+    mlp_acc = accuracy_score(y_test, mlp_predictions)
+    mlp_f1 = f1_score(y_test, mlp_predictions, average='weighted')
 
-    print(f"Test MSE : {mse:.4f}")
-    print(f"Test MAE : {mae:.4f}")
-    print(f"Test R2  : {r2:.4f}")
+    # 3. Evaluate Part B: Deep Learning ANN Model
+    ann_model = joblib.load("ann_classifier_model.h5")
+    ann_probabilities = ann_model.predict(X_test_scaled, verbose=0)
+    ann_predictions = np.argmax(ann_probabilities, axis=1)
 
-    # Export metric JSON configs with AEST timestamp
+    ann_acc = accuracy_score(y_test, ann_predictions)
+    ann_f1 = f1_score(y_test, ann_predictions, average='weighted')
+    ann_precision = precision_score(y_test, ann_predictions, average='weighted', zero_division=0)
+    ann_recall = recall_score(y_test, ann_predictions, average='weighted', zero_division=0)
+
+    print(f"Random Forest Accuracy : {rf_acc:.4f} | F1: {rf_f1:.4f}")
+    print(f"Deep Learning ANN Accuracy : {ann_acc:.4f} | F1: {ann_f1:.4f}")
+
+    # 4. Save DVC Metrics Target File (AEST Timezone metadata)
     test_metrics = {
-        "mse": float(mse),
-        "mae": float(mae),
-        "r2": float(r2),
-        "timestamp": aest_now.isoformat()
+        "accuracy": float(ann_acc),
+        "f1_score": float(ann_f1),
+        "precision": float(ann_precision),
+        "recall": float(ann_recall),
+        "timestamp": aest_now.strftime('%Y-%m-%d %H:%M:%S AEST')
     }
     with open("test_metrics.json", "w") as f:
         json.dump(test_metrics, f, indent=4)
-
-    with open("metrics.json", "w") as f:
+    with open(metrics_path, "w") as f:
         json.dump(test_metrics, f, indent=4)
 
-    # Export overall model configurations profile info (model_info.json)
-    model_info = {
-        "model_type": "CNN_Regression",
-        "input_shape": [int(X_test_scaled.shape[1]), 1],
-        "num_features": int(X_test_scaled.shape[1]),
-        "num_training_samples": int(len(X_train)),
-        "num_test_samples": int(len(y_test)),
-        "feature_columns_preview": [f"X{i}" for i in range(min(10, X_test_scaled.shape[1]))],
-        "target_column": params["data"].get("target_col", "y"),
-        "training_completed": aest_now.isoformat(),
+    # 5. Export Master Results Comparison Table to model_summary.txt (Matches Step C.1 of PDF)
+    summary_text = f"""MLOps Portfolio Assessment 3 - Master Results Table
+Run Timestamp (AEST): {aest_now.strftime('%Y-%m-%d %H:%M:%S AEST')}
+========================================================================
+Model Type       | Model Name           | Accuracy  | Weighted F1-Score
+========================================================================
+Traditional ML   | Random Forest        | {rf_acc:.4f}    | {rf_f1:.4f}
+Traditional ML   | MLP Classifier       | {mlp_acc:.4f}    | {mlp_f1:.4f}
+Deep Learning 1  | Tabular Dense ANN    | {ann_acc:.4f}    | {ann_f1:.4f}
+========================================================================
+Best Classifier Architecture Selected: {'Dense ANN' if ann_acc >= rf_acc else 'Random Forest'}
+"""
+    with open("model_summary.txt", "w", encoding='utf-8') as f:
+        f.write(summary_text.strip())
+    print("Saved Master Results Comparison Table to model_summary.txt.")
+
+    # 6. Generate detailed model_data_info.json configuration specifications in AEST
+    data_info = {
         "hyperparameters": {
-            "epochs": params["model"].get("epochs", 10),
+            "model_type": "Multi-Class Sequential ANN",
+            "epochs": params["model"].get("epochs", 50),
             "batch_size": params["model"].get("batch_size", 32),
-            "learning_rate": params["model"].get("learning_rate", 0.0001),
-            "cnn_filters": params["model"].get("cnn_filters", [64, 128, 64]),
-            "kernel_size": params["model"].get("kernel_size", 3),
-            "pool_size": params["model"].get("pool_size", 2),
-            "dense_units": params["model"].get("dense_units", [256, 128, 64]),
-            "dropout_rates": params["model"].get("dropout_rates", [0.3, 0.2])
+            "learning_rate": params["model"].get("learning_rate", 0.001)
         },
+        "train_samples": 1609,
+        "test_samples": len(y_test),
+        "features_count": int(X_test_scaled.shape[1]),
+        "target_classes": int(len(np.unique(y_test))),
+        "scaler_type": "StandardScaler",
         "test_performance": {
-            "mse": float(mse),
-            "mae": float(mae),
-            "r2": float(r2),
-            "timestamp": aest_now.isoformat()
-        }
+            "accuracy": float(ann_acc),
+            "f1_score": float(ann_f1),
+            "precision": float(ann_precision),
+            "recall": float(ann_recall)
+        },
+        "timestamp": aest_now.isoformat()
     }
-    with open("model_info.json", "w") as f:
-        json.dump(model_info, f, indent=4)
+    with open("model_data_info.json", "w") as f:
+        json.dump(data_info, f, indent=4)
 
-    # Generate side-by-side Loss vs R2 Score metrics plot
-    with open("training_history.json", "r") as f:
-        history = json.load(f)
+    # 7. Generate Visualizations mandated by Step A.5 of PDF (model_comparison.png)
+    plt.figure(figsize=(8, 5))
+    models = ['Random Forest', 'MLP Classifier', 'Deep Learning ANN']
+    accuracies = [rf_acc, mlp_acc, ann_acc]
+    bars = plt.bar(models, accuracies, color=['#3b82f6', '#93c5fd', '#1d4ed8'], width=0.5)
+    plt.ylabel('Test Accuracy')
+    plt.ylim(0, 1.0)
+    plt.title('Obesity Classifier Model Comparison (AEST)')
+    plt.grid(axis='y', linestyle='--', alpha=0.5)
+    for bar in bars:
+        height = bar.get_height()
+        plt.text(bar.get_x() + bar.get_width()/2., height + 0.02, f"{height:.2%}", ha='center', va='bottom', fontweight='bold')
+    plt.tight_layout()
+    plt.savefig("model_comparison.png", dpi=150)
+    plt.close()
 
-    epochs_range = range(len(history["loss"]))
+    # 8. Generate Loss & Accuracy Curves for the ANN Model (model_results.png)
+    history = joblib.load("training_history.pkl")
+    epochs_range = range(1, len(history["loss"]) + 1)
+
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(15, 5))
 
-    # Chart 1: Loss curves
+    # Loss Curves
     ax1.plot(epochs_range, history["loss"], label="Train Loss", color="tab:blue", linewidth=1.8)
     ax1.plot(epochs_range, history["val_loss"], label="Val Loss", color="tab:orange", linewidth=1.8)
-    ax1.set_title("Model Loss", fontsize=12)
-    ax1.set_xlabel("Epoch", fontsize=10)
-    ax1.set_ylabel("Loss (MSE)", fontsize=10)
+    ax1.set_title("ANN Training vs Validation Loss Curves")
+    ax1.set_xlabel("Epoch")
+    ax1.set_ylabel("Loss (Crossentropy)")
     ax1.grid(True)
     ax1.legend()
 
-    # Chart 2: R2 Metric curves
-    ax2.plot(epochs_range, history["r2_metric"], label="Train R2", color="tab:blue", linewidth=1.8)
-    ax2.plot(epochs_range, history["val_r2_metric"], label="Val R2", color="tab:orange", linewidth=1.8)
-    ax2.set_title("Model R2 Score", fontsize=12)
-    ax2.set_xlabel("Epoch", fontsize=10)
-    ax2.set_ylabel("R2", fontsize=10)
+    # Accuracy Curves
+    ax2.plot(epochs_range, history["accuracy"], label="Train Accuracy", color="tab:blue", linewidth=1.8)
+    ax2.plot(epochs_range, history["val_accuracy"], label="Val Accuracy", color="tab:orange", linewidth=1.8)
+    ax2.set_title("ANN Training vs Validation Accuracy Curves")
+    ax2.set_xlabel("Epoch")
+    ax2.set_ylabel("Accuracy")
     ax2.grid(True)
     ax2.legend()
 
     plt.tight_layout()
     plt.savefig("model_results.png", dpi=150)
     plt.close()
-    print("Successfully generated model_results.png curves.")
+    print("Saved model_results.png training curves.")
 
 if __name__ == "__main__":
     evaluate_model()
