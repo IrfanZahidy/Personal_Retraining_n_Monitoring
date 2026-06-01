@@ -4,7 +4,6 @@ Steps to use DVC.docx
 /dvclive
 /artifacts
 /models
-# add .venv/
 .venv/
 /best_model.pkl
 /scaler.pkl
