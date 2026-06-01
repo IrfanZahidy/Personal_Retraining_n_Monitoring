@@ -66,6 +66,17 @@ def evaluate_model():
     print(f"Random Forest Accuracy : {rf_acc:.4f} | F1: {rf_f1:.4f}")
     print(f"Deep Learning ANN Accuracy : {ann_acc:.4f} | F1: {ann_f1:.4f}")
 
+    # Determine the best classifier based on Accuracy, using Weighted F1-score as tie-breaker
+    if ann_acc > rf_acc:
+        best_model_name = 'Dense ANN'
+    elif rf_acc > ann_acc:
+        best_model_name = 'Random Forest'
+    else:
+        # If accuracies are tied, use the F1-score as the tie-breaker
+        best_model_name = 'Random Forest' if rf_f1 >= ann_f1 else 'Dense ANN'
+
+    print(f"Selected Best Architecture: {best_model_name}")
+
     # 4. Save DVC Metrics Target File (AEST Timezone metadata)
     test_metrics = {
         "accuracy": float(ann_acc),
@@ -80,7 +91,7 @@ def evaluate_model():
         json.dump(test_metrics, f, indent=4)
 
     # 5. Export Master Results Comparison Table to model_summary.txt (Matches Step C.1 of PDF)
-    summary_text = f"""MLOps Portfolio Assessment 3 - Master Results Table
+    summary_text = f"""MLOps - Master Results Table
 Run Timestamp (AEST): {aest_now.strftime('%Y-%m-%d %H:%M:%S AEST')}
 ========================================================================
 Model Type       | Model Name           | Accuracy  | Weighted F1-Score
@@ -89,7 +100,7 @@ Traditional ML   | Random Forest        | {rf_acc:.4f}    | {rf_f1:.4f}
 Traditional ML   | MLP Classifier       | {mlp_acc:.4f}    | {mlp_f1:.4f}
 Deep Learning 1  | Tabular Dense ANN    | {ann_acc:.4f}    | {ann_f1:.4f}
 ========================================================================
-Best Classifier Architecture Selected: {'Dense ANN' if ann_acc >= rf_acc else 'Random Forest'}
+Best Classifier Architecture Selected: {best_model_name}
 """
     with open("model_summary.txt", "w", encoding='utf-8') as f:
         f.write(summary_text.strip())
