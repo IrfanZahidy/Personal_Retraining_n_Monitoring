@@ -6,13 +6,14 @@ stages:
       - params.yaml
       - train/train.csv
     outs:
-      - best_model.pkl
+      - best_traditional_model.pkl
+      - ann_classifier_model.h5
       - scaler.pkl
+      - label_encoder.pkl
       - feature_columns.json
       - target_column.json
-      - X_train.npy
+      - training_history.pkl
       - X_train_scaled.npy
-      - X_test.npy
       - X_test_scaled.npy
       - y_train.npy
       - y_test.npy
@@ -20,10 +21,18 @@ stages:
     cmd: python src/evaluate.py
     deps:
       - src/evaluate.py
-      - best_model.pkl
+      - best_traditional_model.pkl
+      - ann_classifier_model.h5
       - X_test_scaled.npy
       - y_test.npy
+      - training_history.pkl
       - params.yaml
+    outs:
+      - model_comparison.png
+      - model_results.png
+      - model_summary.txt
+      - model_data_info.json
+      - test_metrics.json
     metrics:
       - metrics.json:
           cache: false
