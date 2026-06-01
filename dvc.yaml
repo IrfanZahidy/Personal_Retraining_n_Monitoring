@@ -6,12 +6,11 @@ stages:
       - params.yaml
       - train/train.csv
     outs:
+      # Heavy weights and data arrays are securely managed by DVC
       - best_traditional_model.pkl
       - ann_classifier_model.h5
       - scaler.pkl
       - label_encoder.pkl
-      - feature_columns.json
-      - target_column.json
       - training_history.pkl
       - X_train_scaled.npy
       - X_test_scaled.npy
@@ -27,12 +26,3 @@ stages:
       - y_test.npy
       - training_history.pkl
       - params.yaml
-    outs:
-      - model_comparison.png
-      - model_results.png
-      - model_summary.txt
-      - model_data_info.json
-      - test_metrics.json
-    metrics:
-      - metrics.json:
-          cache: false

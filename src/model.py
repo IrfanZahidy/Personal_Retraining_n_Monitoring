@@ -55,7 +55,7 @@ def train_model():
     with open("feature_columns.json", "w") as f:
         json.dump(feature_columns, f, indent=4)
 
-    # Encode Target Labels (7 Classes)
+    # Encode Target Labels dynamically (handles any sample size)
     label_encoder = LabelEncoder()
     y_encoded = label_encoder.fit_transform(y)
     num_classes = len(label_encoder.classes_)
@@ -90,21 +90,21 @@ def train_model():
     np.save("y_test.npy", y_test)
 
     # ==========================================
-    # PART A: TRADITIONAL MACHINE LEARNING MODELS
+    # PART A: COMPARE TRADITIONAL ML MODELS
     # ==========================================
     print("\n--- Training Traditional ML Models ---")
     
     # Model 1: Random Forest Classifier
     rf_model = RandomForestClassifier(n_estimators=100, random_state=seed)
     rf_model.fit(X_train_scaled, y_train)
-    rf_cv_scores = cross_val_score(rf_model, X_train_scaled, y_train, cv=5)
-    print(f"Random Forest 5-Fold CV Mean Score: {rf_cv_scores.mean():.4f}")
+    rf_cv_scores = cross_val_score(rf_model, X_train_scaled, y_train, cv=min(5, len(X_train_scaled)))
+    print(f"Random Forest Cross-Validation Score: {rf_cv_scores.mean():.4f}")
 
-    # Model 2: MLP Classifier (Neural Network)
+    # Model 2: MLP Classifier (Traditional Neural Network)
     mlp_model = MLPClassifier(hidden_layer_sizes=(64, 32), max_iter=500, random_state=seed)
     mlp_model.fit(X_train_scaled, y_train)
-    mlp_cv_scores = cross_val_score(mlp_model, X_train_scaled, y_train, cv=5)
-    print(f"MLP Classifier 5-Fold CV Mean Score: {mlp_cv_scores.mean():.4f}")
+    mlp_cv_scores = cross_val_score(mlp_model, X_train_scaled, y_train, cv=min(5, len(X_train_scaled)))
+    print(f"MLP Classifier Cross-Validation Score: {mlp_cv_scores.mean():.4f}")
 
     # Identify and save the best traditional model
     best_traditional = rf_model if rf_cv_scores.mean() >= mlp_cv_scores.mean() else mlp_model
@@ -117,40 +117,29 @@ def train_model():
     print("\n--- Training Deep Learning ANN Model ---")
     tf.random.set_seed(seed)
 
-    # Build ANN Architecture exactly matching PDF Part B instructions
+    # Build ANN Architecture exactly matching your PDF instructions
     ann_model = tf.keras.models.Sequential([
-        # Input layer automatically determined, First Dense layer: 64 units, ReLU
         tf.keras.layers.Dense(64, activation='relu', input_shape=(X_train_scaled.shape[1],)),
-        tf.keras.layers.Dropout(0.2), # Dropout layer: 0.2
-        
-        # Second Dense layer: 32 units, ReLU
+        tf.keras.layers.Dropout(0.2),
         tf.keras.layers.Dense(32, activation='relu'),
-        tf.keras.layers.Dropout(0.2), # Dropout layer: 0.2
-        
-        # Third Dense layer: 16 units, ReLU
+        tf.keras.layers.Dropout(0.2),
         tf.keras.layers.Dense(16, activation='relu'),
-        
-        # Output Dense layer: number of classes with Softmax activation
         tf.keras.layers.Dense(num_classes, activation='softmax')
     ])
 
-    # Compile the model
     ann_model.compile(
         optimizer=tf.keras.optimizers.Adam(learning_rate=lr),
         loss='sparse_categorical_crossentropy',
         metrics=['accuracy']
     )
 
-    # Define callbacks as requested in Step B.3 of instructions
     callbacks = [
-        # Early stopping if validation loss does not improve for 10 epochs
         tf.keras.callbacks.EarlyStopping(
             monitor='val_loss', 
             patience=10, 
             restore_best_weights=True,
             verbose=1
         ),
-        # Reduce learning rate by half if validation loss plateaus for 5 epochs
         tf.keras.callbacks.ReduceLROnPlateau(
             monitor='val_loss', 
             factor=0.5, 
@@ -159,20 +148,19 @@ def train_model():
         )
     ]
 
-    # Train Deep Learning Model
     history = ann_model.fit(
         X_train_scaled, y_train,
-        validation_split=0.2, # 20% validation split
+        validation_split=0.2,
         epochs=epochs,
         batch_size=batch_size,
         callbacks=callbacks,
         verbose=1
     )
 
-    # Save trained ANN Model as .h5 file and history as pickle
+    # Save trained model and history
     ann_model.save("ann_classifier_model.h5")
     joblib.dump(history.history, "training_history.pkl")
-    print("Saved Deep Learning ANN model and history configurations successfully.")
+    print("Saved Deep Learning ANN model and history configuration successfully.")
 
 if __name__ == "__main__":
     train_model()
