@@ -5,7 +5,7 @@ data:
 
 model:
   epochs: 50
-  batch_size: 32
+  batch_size: 64
   learning_rate: 0.001
   dense_units_1: 128
   dense_units_2: 64
